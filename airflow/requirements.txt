@@ -1,0 +1,7 @@
+apache-airflow==2.7.1
+apache-airflow-providers-docker==3.7.1
+apache-airflow-providers-http==4.5.1
+apache-airflow-providers-mongo==3.3.0
+pymongo==4.6.1
+python-dotenv==1.0.0
+requests==2.31.0

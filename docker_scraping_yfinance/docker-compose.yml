@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  # Python application container untuk scraping yfinance
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: yfinance-scraper
+    environment:
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    volumes:
+      # Volume untuk cache data
+      - ./cache:/app/cache
+    restart: unless-stopped 

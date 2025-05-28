@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # Python application container
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: financial-scraping-app
+    environment:
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    volumes:
+      # Volume for cache data
+      - ./cache:/app/cache
+    depends_on:
+      - chrome-finance
+    networks:
+      - scraper-network
+    restart: unless-stopped
+
+  # Standalone Chrome container for Selenium
+  chrome-finance:
+    image: selenium/standalone-chrome:latest
+    container_name: selenium-chrome-finance
+    ports:
+      - "4445:4444"
+      - "7900:7900"
+    environment:
+      - SE_NODE_MAX_SESSIONS=10
+      - SE_NODE_OVERRIDE_MAX_SESSIONS=true
+    volumes:
+      - /dev/shm:/dev/shm
+    networks:
+      - scraper-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:4444/wd/hub/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# Network for container communication
+networks:
+  scraper-network:
+    driver: bridge 
