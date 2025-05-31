@@ -1,0 +1,38 @@
+# Ignore downloaded data
+downloads/
+*.zip
+*.xbrl
+*.xsd
+
+# Ignore JSON files (can be mounted as volume)
+financial_reports.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+eggs/
+*.egg-info/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+!env.example
+
+# Docker
+docker-compose.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

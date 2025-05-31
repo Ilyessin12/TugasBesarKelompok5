@@ -1,0 +1,9 @@
+# Ignore Python cache and environment files
+__pycache__/
+*.pyc
+.env
+*.env
+*.sqlite3
+*.db
+*.log
+*.zip

@@ -1,3 +1,0 @@
-"""
-Berita Scraper package.
-""" 

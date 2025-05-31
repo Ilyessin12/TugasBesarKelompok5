@@ -1,0 +1,15 @@
+version: "3.8"
+services:
+  berita-scraper:
+    build: .
+    container_name: berita-scraper
+    env_file:
+      - .env
+    volumes:
+      - ./scraped_data:/app/scraped_data
+      - ./emiten_list_pt1.json:/app/emiten_list_pt1.json
+      - ./emiten_list_pt2.json:/app/emiten_list_pt2.json
+      - ./emiten_list_pt3.json:/app/emiten_list_pt3.json
+      - ./emiten_list_pt4.json:/app/emiten_list_pt4.json
+      - ./emiten_list_pt5.json:/app/emiten_list_pt5.json
+    restart: unless-stopped

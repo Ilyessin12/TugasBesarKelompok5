@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # Dashboard service
@@ -17,7 +17,7 @@ services:
       - .env
     restart: unless-stopped
     container_name: bigdata5-dashboard
-    
+
   # API service
   api:
     build:
@@ -53,7 +53,7 @@ services:
     networks:
       - app-network
     container_name: bigdata5-transform
-  
+
   # Mongodb (dibutuhin transform biar bisa konek sama mmongo)
   mongodb:
     image: mongo:latest
@@ -66,87 +66,30 @@ services:
       - scraper-berita-network
       - scraper-finance-network
 
-  # Scraping Berita Service
+  lapkeu-scraper:
+    build: ./extraction/laporan_keuangan
+    container_name: lapkeu-scraper
+    volumes:
+      - ./extraction/laporan_keuangan/downloads:/app/downloads
+
   berita-scraper:
-    build:
-      context: ./docker_scaping_berita
-      dockerfile: Dockerfile
-    container_name: bigdata5-scraping-berita
-    environment:
-      - PYTHONPATH=/app
-    env_file:
-      - ./docker_scaping_berita/.env
+    build: ./extraction/berita
+    container_name: berita-scraper
     volumes:
-      - ./docker_scaping_berita/cache:/app/cache
-    depends_on:
-      - chrome-berita
-    networks:
-      - scraper-berita-network
-    restart: unless-stopped
+      - ./extraction/berita/emiten_list_pt1.json:/app/emiten_list_pt1.json
+      - ./extraction/berita/emiten_list_pt2.json:/app/emiten_list_pt2.json
+      - ./extraction/berita/emiten_list_pt3.json:/app/emiten_list_pt3.json
+      - ./extraction/berita/emiten_list_pt4.json:/app/emiten_list_pt4.json
+      - ./extraction/berita/emiten_list_pt5.json:/app/emiten_list_pt5.json
+      - ./extraction/berita/scraped_data:/app/scraped_data
 
-  # Chrome untuk Scraping Berita
-  chrome-berita:
-    image: selenium/standalone-chrome:latest
-    container_name: selenium-chrome-berita
-    ports:
-      - "4444:4444"
-    environment:
-      - SE_NODE_MAX_SESSIONS=10
-      - SE_NODE_OVERRIDE_MAX_SESSIONS=true
-    volumes:
-      - /dev/shm:/dev/shm
-    networks:
-      - scraper-berita-network
-    restart: unless-stopped
-
-  # Scraping Laporan Keuangan Service
-  finance-scraper:
-    build:
-      context: ./docker_scraping_laporan_keuangan(masih error)
-      dockerfile: Dockerfile
-    container_name: bigdata5-scraping-laporan-keuangan
-    environment:
-      - PYTHONPATH=/app
-    env_file:
-      - ./docker_scraping_laporan_keuangan(masih error)/.env
-    volumes:
-      - ./docker_scraping_laporan_keuangan(masih error)/cache:/app/cache
-    depends_on:
-      - chrome-finance
-    networks:
-      - scraper-finance-network
-    restart: unless-stopped
-
-  # Chrome untuk Scraping Laporan Keuangan
-  chrome-finance:
-    image: selenium/standalone-chrome:latest
-    container_name: selenium-chrome-finance
-    ports:
-      - "5555:4444"
-    environment:
-      - SE_NODE_MAX_SESSIONS=10
-      - SE_NODE_OVERRIDE_MAX_SESSIONS=true
-    volumes:
-      - /dev/shm:/dev/shm
-    networks:
-      - scraper-finance-network
-    restart: unless-stopped
-
-  # Scraping YFinance Service
   yfinance-scraper:
-    build:
-      context: ./docker_scraping_yfinance
-      dockerfile: Dockerfile
-    container_name: bigdata5-scraping-yfinance
-    environment:
-      - PYTHONPATH=/app
-    env_file:
-      - ./docker_scraping_yfinance/.env
+    build: ./extraction/yfinance
+    container_name: yfinance-scraper
     volumes:
-      - ./docker_scraping_yfinance/cache:/app/cache
-    restart: unless-stopped
-    networks:
-      - app-network
+      - ./extraction/yfinance/emiten_list.json:/app/emiten_list.json
+      - ./extraction/yfinance/yfinancescrape.json:/app/yfinancescrape.json
+      - ./extraction/yfinance/tugas1yfinance.py:/app/tugas1yfinance.py
 
 # Networks (dibutuhin sama mongo)
 networks:

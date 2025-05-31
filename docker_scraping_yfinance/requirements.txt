@@ -1,6 +1,0 @@
-yfinance==0.2.59
-python-dotenv==1.0.0
-pandas==2.1.1
-numpy==1.26.0
-requests==2.31.0
-pymongo==4.6.1 
