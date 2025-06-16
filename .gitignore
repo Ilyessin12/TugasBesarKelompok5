@@ -6,3 +6,11 @@
 
 #ignore error logs
 *.log
+
+#ignore download outputs from the extract laporan keuangan script
+*.xbrl
+*.xsd
+*.zip
+
+#ignore output from scraped data
+./extraction/berita/scraped_data
