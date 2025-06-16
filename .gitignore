@@ -13,4 +13,10 @@
 *.zip
 
 #ignore output from scraped data
-./extraction/berita/scraped_data
+extraction/berita/scraped_data
+# Output from laporan_keuangan extraction
+extraction/laporan_keuangan/financial_reports.json
+extraction/laporan_keuangan/downloads/
+
+# Output from yfinance extraction
+extraction/yfinance/yfinancescrape.json
