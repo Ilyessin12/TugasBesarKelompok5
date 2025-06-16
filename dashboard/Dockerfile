@@ -28,11 +28,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
 
 # (Opsional) Jika Anda ingin menyertakan node_modules untuk dependensi runtime
-# COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/node_modules ./node_modules
 
 
 # Expose port
 EXPOSE 3000
 
 # Jalankan aplikasi
-CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]

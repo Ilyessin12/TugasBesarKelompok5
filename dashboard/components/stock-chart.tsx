@@ -35,7 +35,7 @@ export function StockChart({ darkMode = false, emiten, onDataUpdate }: StockChar
     const fetchData = async () => {
       try {
         setIsLoading(true)
-        const apiUrl = 'https://1d11-54-88-52-186.ngrok-free.app'
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL
         const res = await fetch(`${apiUrl}/api/stock/${emiten}?period=monthly`,{
           headers: {
             "ngrok-skip-browser-warning": "true",
