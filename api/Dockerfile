@@ -2,14 +2,6 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install ngrok and curl
-RUN apt-get update && apt-get install -y wget unzip curl && \
-    wget https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz -O ngrok.tgz && \
-    tar xvzf ngrok.tgz -C /usr/local/bin && \
-    rm ngrok.tgz && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
 # Copy requirements first for better caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
