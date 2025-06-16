@@ -17,6 +17,9 @@ services:
       - .env
     restart: unless-stopped
     container_name: bigdata5-dashboard
+    #used networks
+    networks: 
+      - app-network
 
   # API service
   api:
@@ -29,6 +32,9 @@ services:
       - .env
     restart: unless-stopped
     container_name: bigdata5-api
+    #used networks
+    networks:
+      - app-network
 
   # Transform service
   transform:
