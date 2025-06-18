@@ -1,0 +1,9 @@
+# filepath: Dockerfile.airflow
+FROM apache/airflow:2.8.3
+USER root
+# Install any system dependencies if needed
+# apt-get update && apt-get install -y ...
+USER airflow
+COPY airflow/dags /opt/airflow/dags
+COPY airflow/requirements.txt /requirements.txt
+RUN pip install --no-cache-dir -r /requirements.txt
