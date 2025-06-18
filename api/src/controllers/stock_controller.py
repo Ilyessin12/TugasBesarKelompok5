@@ -7,11 +7,11 @@ stock_bp = Blueprint('stock_bp', __name__)
 def get_stock_info(emiten):
     """
     API endpoint to get stock data.
-    Accepts 'period' query parameter (daily, weekly, monthly, quarterly, yearly, 1y, 3y, 5y, all).
+    Accepts 'period' query parameter (3days, 1week, 1month, 3month, 1y, 3y, 5y, all).
     Defaults to 'all' if not specified.
     """
     period = request.args.get('period', 'all').lower()
-    valid_periods = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly', '1y', '3y', '5y', 'all']
+    valid_periods = ['3days', '1week', '1month', '3month', '1y', '3y', '5y', 'all']
 
     if period not in valid_periods:
          return jsonify({"error": f"Invalid period specified. Valid periods are: {', '.join(valid_periods)}"}), 400
