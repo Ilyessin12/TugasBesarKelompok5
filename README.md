@@ -99,17 +99,23 @@ Fetches summarized news articles related to a specific emiten. Supports paginati
 
 ### 4. Get Financial Report Data
 
-Fetches the latest available financial report data for a specific emiten.
+Fetches financial report data for a specific emiten. It can retrieve the report for a specific year or the latest available report if no year is specified.
 
 *   **Endpoint**: `GET /api/financial/<emiten>`
 *   **Path Parameter**:
     *   `emiten` (string, required): The stock ticker symbol (e.g., `AALI` or `AALI.JK`).
-*   **Query Parameters**: None.
+*   **Query Parameter**:
+    *   `year` (string, optional): The year of the financial report to retrieve (e.g., `2023`).
+        *   Valid values: `2021`, `2022`, `2023`, `2024`, `2025`.
+        *   If this parameter is omitted, the API will return the most recent financial report available for the emiten.
 *   **Success Response (200 OK)**:
     *   A JSON object containing the financial report data. The structure depends on your database schema but will include an `EntityCode` field with the `.JK` suffix.
+*   **Error Responses**:
+    *   `400 Bad Request`: If an invalid `year` is specified.
+    *   `404 Not Found`: If no report is found for the given `emiten` and `year`.
 *   **Example**:
-    *   `GET /api/financial/GOTO`
-    *   `GET /api/financial/BMRI.JK`
+    *   `GET /api/financial/GOTO` (gets the latest report)
+    *   `GET /api/financial/BMRI.JK?year=2023` (gets the report for the year 2023)
 
 ## (`limit` and `skip`) parameters on news data
 
