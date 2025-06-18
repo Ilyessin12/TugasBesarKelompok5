@@ -1,38 +1,28 @@
-# Stage 1: Build
+# Stage 1: Build the application
 FROM node:18-alpine AS builder
-
-# Set direktori kerja
 WORKDIR /app
 
-# Salin package.json dan package-lock.json
-COPY package*.json ./
+# Install dependencies
+COPY package.json pnpm-lock.yaml ./
+RUN npm install -g pnpm
+RUN pnpm install
 
-# Instal dependensi
-RUN npm install
-
-# Salin semua file proyek
+# Copy source code and build
 COPY . .
+RUN pnpm build
 
-# Build aplikasi Next.js
-RUN npm run build
-
-# Stage 2: Runtime
+# Stage 2: Create the production image
 FROM node:18-alpine AS runner
-
-# Set direktori kerja
 WORKDIR /app
 
-# Salin hasil build dari stage builder
-COPY --from=builder /app/.next ./.next
+# Copy the standalone output from the builder stage
+COPY --from=builder /app/.next/standalone ./
+# Copy the public assets
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./package.json
+# Copy the static assets
+COPY --from=builder /app/.next/static ./.next/static
 
-# (Opsional) Jika Anda ingin menyertakan node_modules untuk dependensi runtime
-COPY --from=builder /app/node_modules ./node_modules
-
-
-# Expose port
 EXPOSE 3000
 
-# Jalankan aplikasi
-CMD ["npm", "run", "dev"]
+# Run the standalone server
+CMD ["node", "server.js"]

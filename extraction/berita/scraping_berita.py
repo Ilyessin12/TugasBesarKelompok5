@@ -358,7 +358,7 @@ def ingest_to_mongodb():
     # Get environment variables
     connection_string = os.getenv("MONGODB_CONNECTION_STRING")
     db_name = os.getenv("MONGODB_DATABASE_NAME")
-    collection_name = os.getenv("COLLECTION_NEWS_DATA")
+    collection_name = os.getenv("COLLECTION_NEWS")
     news_output_prefix = os.getenv("NEWS_OUTPUT_PREFIX", "news_data_pt")
     
     if not all([connection_string, db_name, collection_name]):
