@@ -356,9 +356,9 @@ def scrape_all_news_files():
 def ingest_to_mongodb():
     """Ingest scraped news data to MongoDB"""
     # Get environment variables
-    connection_string = os.getenv("MONGODB_CONNECTION_STRING", "mongodb+srv://kelompok-5:FwJP0h7Bo6cTpEol@big-data.do3of.mongodb.net/?retryWrites=true&w=majority&ssl=true")
-    db_name = os.getenv("MONGODB_DATABASE_NAME", "Big_Data_kel_5")
-    collection_name = os.getenv("COLLECTION_NEWS_DATA", "Docker_Scraping_Berita")
+    connection_string = os.getenv("MONGODB_CONNECTION_STRING")
+    db_name = os.getenv("MONGODB_DATABASE_NAME")
+    collection_name = os.getenv("COLLECTION_NEWS_DATA")
     news_output_prefix = os.getenv("NEWS_OUTPUT_PREFIX", "news_data_pt")
     
     if not all([connection_string, db_name, collection_name]):

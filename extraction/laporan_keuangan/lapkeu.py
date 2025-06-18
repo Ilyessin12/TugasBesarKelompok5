@@ -40,9 +40,9 @@ IDX_URL = "https://www.idx.co.id/id/perusahaan-tercatat/laporan-keuangan-dan-tah
 EMITEN_LIST_FILE = "emiten_list.json"
 
 # MongoDB Configuration
-MONGODB_CONNECTION_STRING = os.getenv("MONGODB_CONNECTION_STRING", "mongodb+srv://kelompok-5:FwJP0h7Bo6cTpEol@big-data.do3of.mongodb.net/?retryWrites=true&w=majority&ssl=true")
-MONGODB_DATABASE_NAME = os.getenv("MONGODB_DATABASE_NAME", "Big_Data_kel_5")
-COLLECTION_FINANCIAL_REPORTS = os.getenv("COLLECTION_FINANCIAL_REPORTS", "Docker_Scraping_Laporan_Keuangan")
+MONGODB_CONNECTION_STRING = os.getenv("MONGODB_CONNECTION_STRING")
+MONGODB_DATABASE_NAME = os.getenv("MONGODB_DATABASE_NAME")
+COLLECTION_FINANCIAL_REPORTS = os.getenv("COLLECTION_FINANCIAL_REPORTS")
 
 def create_directories():
     """Membuat direktori yang dibutuhkan"""
@@ -392,7 +392,11 @@ def ingest_to_mongodb(all_financial_reports):
         
         logger.info("Preparing bulk operations...")
         for record in all_financial_reports:
-            company = record["company"]
+            # Safely get the company and skip if it's missing or null
+            company = record.get("company")
+            if not company:
+                logger.warning(f"Skipping record with missing or null company field. Timestamp: {record.get('timestamp', 'N/A')}")
+                continue
             
             if company in existing_companies:
                 # Update existing record
