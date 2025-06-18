@@ -10,6 +10,7 @@ import {
   TrendingDown,
   ChevronDown
 } from "lucide-react"
+import { useRouter } from 'next/navigation';
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -382,6 +383,8 @@ export default function DashboardPage() {
     return `${(value * 100).toFixed(2)}%`;
   };
 
+  const router = useRouter();
+
   if (error) {
     return <div className="h-screen flex items-center justify-center text-red-400">Error: {error}</div>
   }
@@ -466,9 +469,9 @@ export default function DashboardPage() {
                       <div className="text-lg font-semibold text-white">
                         {selectedEmitenData.symbol}
                       </div>
-                      <div className="rounded-full bg-indigo-900/50 px-2 py-0.5 text-xs font-medium text-indigo-300">
+                      {/* <div className="rounded-full bg-indigo-900/50 px-2 py-0.5 text-xs font-medium text-indigo-300">
                         {selectedEmitenData.sector}
-                      </div>
+                      </div> */}
                     </div>
                     <CardDescription className="text-slate-400">
                       IDX: {selectedEmitenData.symbol}
@@ -645,18 +648,14 @@ export default function DashboardPage() {
                     )}
                   </div>
                   <div className="border-t border-[#1e293b] p-3">
-                    <Link 
-                      href={`/berita?emiten=${selectedEmiten.replace('.JK', '')}`}
-                      className="block w-full"
+                    <Button 
+                      variant="ghost" 
+                      className="w-full justify-between text-sm text-slate-400 hover:text-white"
+                      onClick={() => router.push(`/berita?emiten=${selectedEmiten.replace('.JK', '')}`)}
                     >
-                      <Button 
-                        variant="ghost" 
-                        className="w-full justify-between text-sm text-slate-400 hover:text-white"
-                      >
-                        Lihat semua berita {selectedEmiten.replace('.JK', '')}
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </Link>
+                      Lihat semua berita {selectedEmiten.replace('.JK', '')}
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -782,13 +781,13 @@ export default function DashboardPage() {
                         </TableHeader>
                         <TableBody>
                           <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                            <TableCell className="font-medium text-white">Pinjaman Jangka Pendek</TableCell>
+                            <TableCell className="font-medium text-white whitespace-nowrap">Pinjaman Jangka Pendek</TableCell>
                             <TableCell className="text-slate-300">
                               {formatCurrency(financialData.ShortTermBankLoans)}
                             </TableCell>
                           </TableRow>
                           <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                            <TableCell className="font-medium text-white">Pinjaman Jangka Panjang</TableCell>
+                            <TableCell className="font-medium text-white whitespace-nowrap">Pinjaman Jangka Panjang</TableCell>
                             <TableCell className="text-slate-300">
                               {formatCurrency(financialData.LongTermBankLoans)}
                             </TableCell>
