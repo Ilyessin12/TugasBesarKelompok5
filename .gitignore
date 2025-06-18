@@ -20,3 +20,11 @@ extraction/laporan_keuangan/downloads/
 
 # Output from yfinance extraction
 extraction/yfinance/yfinancescrape.json
+
+# Airflow specific
+airflow/logs/*
+!airflow/logs/.gitkeep
+postgres-db/
+
+# Docker volumes
+hf_cache/

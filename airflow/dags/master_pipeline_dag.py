@@ -1,76 +1,57 @@
-from datetime import datetime, timedelta
+import os
 from airflow import DAG
-from airflow.operators.dummy import DummyOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
-from airflow.utils.dates import days_ago
+from datetime import datetime, timedelta
 
-# Default arguments for the DAG
 default_args = {
     'owner': 'airflow',
-    'depends_on_past': False,
-    'email_on_failure': False,
-    'email_on_retry': False,
+    'start_date': datetime(2025, 6, 18),
     'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    'retry_delay': timedelta(minutes=5)
 }
 
-# Create the DAG
-dag = DAG(
-    'master_data_pipeline',
+with DAG(
+    dag_id='bigdata5_master_pipeline',
     default_args=default_args,
-    description='Master pipeline that orchestrates all data workflows',
-    schedule_interval='0 0 * * *',  # Run daily at midnight
-    start_date=days_ago(1),
+    schedule_interval='@daily',
     catchup=False,
-    tags=['master', 'pipeline'],
-)
-
-# Start task
-start = DummyOperator(
-    task_id='start_pipeline',
-    dag=dag,
-)
-
-# End task
-end = DummyOperator(
-    task_id='end_pipeline',
-    dag=dag,
-)
-
-# Trigger news scraping DAG
-trigger_news_scraping = TriggerDagRunOperator(
-    task_id='trigger_news_scraping',
-    trigger_dag_id='news_scraping_pipeline',
-    wait_for_completion=True,
-    dag=dag,
-)
-
-# Trigger YFinance scraping DAG
-trigger_yfinance_scraping = TriggerDagRunOperator(
-    task_id='trigger_yfinance_scraping',
-    trigger_dag_id='yfinance_scraping_pipeline',
-    wait_for_completion=True,
-    dag=dag,
-)
-
-# Trigger financial report scraping DAG (only on Mondays)
-trigger_financial_report = TriggerDagRunOperator(
-    task_id='trigger_financial_report',
-    trigger_dag_id='financial_report_pipeline',
-    wait_for_completion=True,
-    execution_date="{{ execution_date if execution_date.weekday() == 0 else None }}",
-    dag=dag,
-)
-
-# Trigger data transformation DAG
-trigger_transformation = TriggerDagRunOperator(
-    task_id='trigger_transformation',
-    trigger_dag_id='data_transformation_pipeline',
-    wait_for_completion=True,
-    dag=dag,
-)
-
-# Set task dependencies
-start >> [trigger_news_scraping, trigger_yfinance_scraping, trigger_financial_report]
-[trigger_news_scraping, trigger_yfinance_scraping, trigger_financial_report] >> trigger_transformation
-trigger_transformation >> end
+    tags=['bigdata5', 'master', 'ETL'],
+    description='Master pipeline untuk orchestrasi seluruh proses ETL Big Data Kelompok 5'
+) as dag:
+    
+    # Trigger extraction pipelines
+    trigger_yfinance_extraction = TriggerDagRunOperator(
+        task_id='trigger_yfinance_extraction',
+        trigger_dag_id='yfinance_extraction_pipeline',
+        wait_for_completion=True,
+        poke_interval=30,
+        execution_timeout=timedelta(hours=1),  # 1 hour timeout
+    )
+    
+    trigger_berita_extraction = TriggerDagRunOperator(
+        task_id='trigger_berita_extraction',
+        trigger_dag_id='berita_extraction_pipeline',
+        wait_for_completion=True,
+        poke_interval=30,
+        execution_timeout=timedelta(hours=1),
+    )
+    
+    trigger_lapkeu_extraction = TriggerDagRunOperator(
+        task_id='trigger_lapkeu_extraction',
+        trigger_dag_id='laporan_keuangan_extraction_pipeline',
+        wait_for_completion=True,
+        poke_interval=30,
+        execution_timeout=timedelta(hours=2),  # 2 hours timeout untuk laporan keuangan (lebih lama)
+    )
+    
+    # Trigger transformation pipeline setelah extraction selesai
+    trigger_transformation = TriggerDagRunOperator(
+        task_id='trigger_transformation',
+        trigger_dag_id='transformation_pipeline',
+        wait_for_completion=True,
+        poke_interval=60,
+        execution_timeout=timedelta(hours=2),  # 2 hours timeout untuk transformasi
+    )
+    
+    # Dependencies: Semua extraction harus selesai sebelum transformasi
+    [trigger_yfinance_extraction, trigger_berita_extraction, trigger_lapkeu_extraction] >> trigger_transformation

@@ -1,6 +1,150 @@
 version: "3.8"
 
 services:
+  # ======================================
+  # AIRFLOW SERVICES
+  # ======================================
+  postgres:
+    container_name: bigdata5-postgres-db
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+      POSTGRES_CONFIG: "-c lock_timeout=30000"
+    networks:
+      - app-network
+    volumes:
+      - postgres-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  airflow-init:
+    container_name: bigdata5-airflow-init
+    image: apache/airflow:2.6.3
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/requirements.txt:/opt/airflow/requirements.txt
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    command: |
+      bash -c '
+        pip install -r /opt/airflow/requirements.txt &&
+        airflow db init &&
+        airflow users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com \
+          --password admin
+      '
+    networks:
+      - app-network
+
+  airflow-webserver:
+    container_name: bigdata5-airflow-webserver
+    image: apache/airflow:2.6.3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - app-network
+    volumes:
+      - ./airflow/requirements.txt:/opt/airflow/requirements.txt
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: |
+      bash -c '
+        pip install -r /opt/airflow/requirements.txt &&
+        airflow webserver
+      '
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      # MongoDB Configuration from .env
+      MONGODB_CONNECTION_STRING: ${MONGODB_CONNECTION_STRING}
+      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
+      # Collection Names from .env
+      COLLECTION_FINANCIAL_REPORTS: ${COLLECTION_FINANCIAL_REPORTS}
+      COLLECTION_NEWS: ${COLLECTION_NEWS}
+      COLLECTION_YFINANCE_DATA: ${COLLECTION_YFINANCE_DATA}
+      COLLECTION_NEWS_DATA: ${COLLECTION_NEWS_DATA}
+      COLLECTION_NEWS_SUMMARY_DATA: ${COLLECTION_NEWS_SUMMARY_DATA}
+      # API Key from .env
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # Other Configuration from .env
+      MONGODB_BATCH_SIZE: ${MONGODB_BATCH_SIZE}
+      COMPANY_PROCESSING_DELAY: ${COMPANY_PROCESSING_DELAY}
+      MAX_COMPANIES_TO_PROCESS: ${MAX_COMPANIES_TO_PROCESS}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  airflow-scheduler:
+    container_name: bigdata5-airflow-scheduler
+    image: apache/airflow:2.6.3
+    command: |
+      bash -c '
+        pip install -r /opt/airflow/requirements.txt &&
+        airflow scheduler
+      '
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - app-network
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./airflow/requirements.txt:/opt/airflow/requirements.txt
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__PARALLELISM: 24
+      AIRFLOW__CORE__DAG_CONCURRENCY: 8
+      AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: 3
+      # MongoDB Configuration from .env
+      MONGODB_CONNECTION_STRING: ${MONGODB_CONNECTION_STRING}
+      MONGODB_DATABASE_NAME: ${MONGODB_DATABASE_NAME}
+      # Collection Names from .env
+      COLLECTION_FINANCIAL_REPORTS: ${COLLECTION_FINANCIAL_REPORTS}
+      COLLECTION_NEWS: ${COLLECTION_NEWS}
+      COLLECTION_YFINANCE_DATA: ${COLLECTION_YFINANCE_DATA}
+      COLLECTION_NEWS_DATA: ${COLLECTION_NEWS_DATA}
+      COLLECTION_NEWS_SUMMARY_DATA: ${COLLECTION_NEWS_SUMMARY_DATA}
+      # API Key from .env
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # Other Configuration from .env
+      MONGODB_BATCH_SIZE: ${MONGODB_BATCH_SIZE}
+      COMPANY_PROCESSING_DELAY: ${COMPANY_PROCESSING_DELAY}
+      MAX_COMPANIES_TO_PROCESS: ${MAX_COMPANIES_TO_PROCESS}
+    restart: unless-stopped
+
+  # ======================================
+  # APPLICATION SERVICES
+  # ======================================
+
   # Dashboard service
   dashboard:
     build:
@@ -77,8 +221,6 @@ services:
     container_name: lapkeu-scraper
     volumes:
       - ./extraction/laporan_keuangan/downloads:/app/downloads
-    env_file:
-      - .env
 
   berita-scraper:
     build: ./extraction/berita
@@ -90,8 +232,6 @@ services:
       - ./extraction/berita/emiten_list_pt4.json:/app/emiten_list_pt4.json
       - ./extraction/berita/emiten_list_pt5.json:/app/emiten_list_pt5.json
       - ./extraction/berita/scraped_data:/app/scraped_data
-    env_file:
-      - .env
 
   yfinance-scraper:
     build: ./extraction/yfinance
@@ -100,8 +240,6 @@ services:
       - ./extraction/yfinance/emiten_list.json:/app/emiten_list.json
       - ./extraction/yfinance/yfinancescrape.json:/app/yfinancescrape.json
       - ./extraction/yfinance/tugas1yfinance.py:/app/tugas1yfinance.py
-    env_file:
-      - .env
 
 # Networks (dibutuhin sama mongo)
 networks:
@@ -114,3 +252,5 @@ networks:
 
 volumes:
   mongo-data:
+  postgres-db:
+    name: bigdata5_postgres_db

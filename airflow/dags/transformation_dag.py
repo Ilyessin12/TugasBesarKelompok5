@@ -1,57 +1,63 @@
-from datetime import datetime, timedelta
-from airflow import DAG
-from airflow.operators.bash import BashOperator
-from airflow.operators.python import PythonOperator
-from airflow.providers.docker.operators.docker import DockerOperator
-from airflow.models import Variable
-from airflow.utils.dates import days_ago
 import os
-from dotenv import load_dotenv
+from airflow import DAG
+from airflow.providers.docker.operators.docker import DockerOperator
+from datetime import datetime, timedelta
 
-# Load environment variables
-load_dotenv()
-
-# Default arguments for the DAG
 default_args = {
     'owner': 'airflow',
-    'depends_on_past': False,
-    'email_on_failure': False,
-    'email_on_retry': False,
+    'start_date': datetime(2025, 6, 18),
     'retries': 1,
-    'retry_delay': timedelta(minutes=5),
+    'retry_delay': timedelta(minutes=5)
 }
 
-# Create the DAG
-dag = DAG(
-    'data_transformation_pipeline',
+with DAG(
+    dag_id='transformation_pipeline',
     default_args=default_args,
-    description='Pipeline for transforming scraped data',
-    schedule_interval=timedelta(days=1),
-    start_date=days_ago(1),
+    schedule_interval='@daily',
     catchup=False,
-    tags=['transformation', 'data'],
-)
-
-# Task to run the data transformation in Docker
-transform_data = DockerOperator(
-    task_id='transform_data',
-    image='bigdata5-transform',
-    container_name='airflow_data_transformation',
-    api_version='auto',
-    auto_remove=True,
-    command='python /app/src/main.py',
-    docker_url='unix://var/run/docker.sock',
-    network_mode='app-network',
-    environment={
-        'MONGODB_CONNECTION_STRING': '{{var.value.mongodb_connection_string}}',
-        'MONGODB_DATABASE_NAME': '{{var.value.mongodb_database_name}}',
-        'COLLECTION_NEWS_DATA': '{{var.value.collection_news_data}}',
-        'COLLECTION_NEWS_SUMMARY_DATA': '{{var.value.collection_news_summary_data}}',
-        'COLLECTION_FINANCIAL_REPORTS': '{{var.value.collection_financial_reports}}',
-        'GEMINI_API_KEY': '{{var.value.gemini_api_key}}'
-    },
-    dag=dag,
-)
-
-# Set task dependencies
-transform_data
+    tags=['bigdata5', 'transformation'],
+    description='Pipeline untuk transformasi data financial reports dan news summary'
+) as dag:
+    
+    # Task untuk transformasi laporan keuangan
+    transform_financial_reports = DockerOperator(
+        task_id='transform_financial_reports',
+        image='tugasbesarkelompok5-transform:latest',
+        auto_remove=True,
+        docker_url="unix://var/run/docker.sock",
+        network_mode="app-network",
+        mount_tmp_dir=False,
+        container_name="airflow_transform_financial_{{ ts_nodash }}",
+        environment={
+            'MONGODB_CONNECTION_STRING': os.environ.get('MONGODB_CONNECTION_STRING'),
+            'MONGODB_DATABASE_NAME': os.environ.get('MONGODB_DATABASE_NAME'),
+            'COLLECTION_FINANCIAL_REPORTS': os.environ.get('COLLECTION_FINANCIAL_REPORTS'),
+            'MONGO_OUTPUT_COLLECTION': 'Docker_Transformasi_Laporan_Keuangan',
+            'GEMINI_API_KEY': os.environ.get('GEMINI_API_KEY'),
+            'CHECKPOINT_INTERVAL': '150'
+        },
+        command='python3 /app/src/financialreport_transformer.py'
+    )
+    
+    # Task untuk transformasi ringkasan berita
+    transform_news_summary = DockerOperator(
+        task_id='transform_news_summary',
+        image='tugasbesarkelompok5-transform:latest',
+        auto_remove=True,
+        docker_url="unix://var/run/docker.sock",
+        network_mode="app-network",
+        mount_tmp_dir=False,
+        container_name="airflow_transform_news_{{ ts_nodash }}",
+        environment={
+            'MONGODB_CONNECTION_STRING': os.environ.get('MONGODB_CONNECTION_STRING'),
+            'MONGODB_DATABASE_NAME': os.environ.get('MONGODB_DATABASE_NAME'),
+            'COLLECTION_NEWS_DATA': os.environ.get('COLLECTION_NEWS_DATA'),
+            'COLLECTION_NEWS_SUMMARY_DATA': os.environ.get('COLLECTION_NEWS_SUMMARY_DATA'),
+            'GEMINI_API_KEY': os.environ.get('GEMINI_API_KEY'),
+            'CHECKPOINT_INTERVAL': '100'
+        },
+        command='python3 /app/src/news_transformer.py'
+    )
+    
+    # Dependencies: kedua task bisa berjalan paralel
+    [transform_financial_reports, transform_news_summary]

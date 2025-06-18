@@ -4,5 +4,4 @@ __pycache__/
 *.pyd
 news_scraping.log
 debug_*.html
-*.json
 .env
