@@ -26,7 +26,7 @@ for detached mode
 
 3. API should be accessable in localhost:5000
 
-# API Documentations
+# API Documentations    
 
 ## General Notes
 

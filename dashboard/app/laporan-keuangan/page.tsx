@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { RealtimeClock } from "@/components/realtime-clock" // Add this import
 import {
   BarChart,
   Bell,
@@ -209,25 +210,36 @@ export default function LaporanKeuanganPage() {
   const handlePeriodChange = (value: string): void => {
     setSelectedPeriod(value)
   }
+  const handleSearch = () => {
+    // Implement search functionality
+    console.log(`Searching for: ${searchQuery}`)
+  }
 
   return (
     <div className="flex min-h-screen bg-[#0f172a]">
+      {/* Desktop Sidebar */}
       <Sidebar 
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        onSearch={handleSearch}
       />
       
-      <div className="flex-1">
+      {/* Main Content */}
+      <div className="flex flex-col flex-1">
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[#1e293b] bg-[#0f172a]/80 px-4 backdrop-blur-sm md:px-6">
           <div className="flex items-center gap-4">
             <MobileSidebar 
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              onSearch={handleSearch}
             />
             <h1 className="text-xl font-semibold text-white">Laporan Keuangan</h1>
           </div>
+          
+          <RealtimeClock />
         </header>
 
+        {/* The content should be inside this main content div, not outside */}
         <div className="p-4 md:p-6">
           <Card className="border-[#1e293b] bg-[#0f172a] shadow-lg">
             <CardHeader className="border-b border-[#1e293b] px-6">

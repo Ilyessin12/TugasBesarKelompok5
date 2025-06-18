@@ -1,0 +1,115 @@
+version: '3'
+services:
+  # Dashboard service
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    volumes:
+      - ./dashboard:/app
+      - /app/node_modules  # This prevents node_modules from being overwritten
+      - /app/.next         # This prevents .next folder from being overwritten
+    environment:
+      - WATCHPACK_POLLING=true  # Enable polling for file changes
+      - CHOKIDAR_USEPOLLING=true  # Enable polling for Chokidar
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    restart: unless-stopped
+    container_name: bigdata5-dashboard
+    #used networks
+    networks: 
+      - app-network  # Add this
+
+  # API service
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    restart: unless-stopped
+    container_name: bigdata5-api
+    volumes:
+      - ./api/entrypoint.sh:/app/entrypoint.sh
+    entrypoint: ["/bin/bash", "/app/entrypoint.sh"]
+    #used networks
+    networks:
+      - app-network  # Add this
+
+  # Transform service
+  transform:
+    build:
+      context: ./transformation
+      dockerfile: Dockerfile
+    volumes:
+      - ./data:/app/data
+      - ./hf_cache:/root/.cache/huggingface
+    environment:
+      - BASE_DOWNLOAD_DIR=/app/data
+      - MONGODB_CONNECTION_STRING=${MONGODB_CONNECTION_STRING}
+      - MONGODB_DATABASE_NAME=${MONGODB_DATABASE_NAME}
+      - COLLECTION_NEWS_SUMMARY_DATA=${COLLECTION_NEWS_SUMMARY_DATA}
+      - COLLECTION_FINANCIAL_REPORTS=${COLLECTION_FINANCIAL_REPORTS}
+      - NEWS_PART=5
+      - CHECKPOINT_INTERVAL=150
+      - MONGO_OUTPUT_COLLECTION=Docker_Transformasi_Laporan_Keuangan
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - mongodb
+    networks:
+      - app-network
+    container_name: bigdata5-transform
+
+  # Mongodb (dibutuhin transform biar bisa konek sama mmongo)
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - app-network
+      - scraper-berita-network
+      - scraper-finance-network
+
+  lapkeu-scraper:
+    build: ./extraction/laporan_keuangan
+    container_name: lapkeu-scraper
+    volumes:
+      - ./extraction/laporan_keuangan/downloads:/app/downloads
+
+  berita-scraper:
+    build: ./extraction/berita
+    container_name: berita-scraper
+    volumes:
+      - ./extraction/berita/emiten_list_pt1.json:/app/emiten_list_pt1.json
+      - ./extraction/berita/emiten_list_pt2.json:/app/emiten_list_pt2.json
+      - ./extraction/berita/emiten_list_pt3.json:/app/emiten_list_pt3.json
+      - ./extraction/berita/emiten_list_pt4.json:/app/emiten_list_pt4.json
+      - ./extraction/berita/emiten_list_pt5.json:/app/emiten_list_pt5.json
+      - ./extraction/berita/scraped_data:/app/scraped_data
+
+  yfinance-scraper:
+    build: ./extraction/yfinance
+    container_name: yfinance-scraper
+    volumes:
+      - ./extraction/yfinance/emiten_list.json:/app/emiten_list.json
+      - ./extraction/yfinance/yfinancescrape.json:/app/yfinancescrape.json
+      - ./extraction/yfinance/tugas1yfinance.py:/app/tugas1yfinance.py
+
+# Networks (dibutuhin sama mongo)
+networks:
+  app-network:
+    driver: bridge
+  scraper-berita-network:
+    driver: bridge
+  scraper-finance-network:
+    driver: bridge
+
+volumes:
+  mongo-data:

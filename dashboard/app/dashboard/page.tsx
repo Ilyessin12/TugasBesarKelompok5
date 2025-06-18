@@ -13,13 +13,16 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { MobileSidebar } from "@/components/sidebar" // Keep only the mobile sidebar
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Sidebar, MobileSidebar } from "@/components/sidebar"
 
 import { StockChart } from "@/components/stock-chart"
 import { NewsCard } from "@/components/news-card"
+import { API } from "@/services/api"
+import { StockData, NewsItem as APINewsItem, EmitenInfo } from "@/types/api"
+import { RealtimeClock } from "@/components/realtime-clock"
 
 // Definisikan tipe untuk data emiten
 interface Emiten {
@@ -96,14 +99,125 @@ const newsDatabase: { [key: string]: NewsItem[] } = {
   ]
 }
 
+// Add static financial data
+const staticFinancialData = {
+  ADRO: {
+    EntityName: "Alamtri Resources Indonesia Tbk",
+    EntityCode: "ADRO",
+    Assets: 10472711000,
+    ProfitLoss: 1854878000,
+    EquityAttributableToEquityOwnersOfParentEntity: 6772664000,
+    CashAndCashEquivalents: 3311232000,
+    ShortTermBankLoans: 0,
+    LongTermBankLoans: 404361000,
+    SalesAndRevenue: 1084004000,
+    GrossProfit: 867681000,
+    ProfitFromOperation: 0,
+    NetCashFlowOp: 1152758000,
+    NetCashFlowInv: -582426000,
+    NetCashFlowFin: -1333690000,
+    CurrentAssets: 5000000000,
+    NonCurrentAssets: 5472711000,
+    CurrentLiabilities: 2000000000,
+    NonCurrentLiabilities: 204361000,
+    ShareCapital: 3000000000,
+    RetainedEarnings: 3772664000,
+    TotalEquity: 6772664000,
+
+    // Derived calculations
+    get TotalLiabilities() {
+      return this.Assets - this.EquityAttributableToEquityOwnersOfParentEntity;
+    },
+    get ROE() {
+      return ((this.ProfitLoss / this.EquityAttributableToEquityOwnersOfParentEntity) * 100).toFixed(2);
+    },
+    get DebtToEquity() {
+      return (this.TotalLiabilities / this.EquityAttributableToEquityOwnersOfParentEntity).toFixed(2);
+    },
+    get OtherAssets() {
+      return this.Assets - this.CashAndCashEquivalents;
+    },
+    get TotalCashFlow() {
+      return this.NetCashFlowOp + this.NetCashFlowInv + this.NetCashFlowFin;
+    },
+    financial: {
+      balance: [
+        { metric: "Total Aset", value: 10472711000 },
+        { metric: "Kas & Setara Kas", value: 3311232000 },
+        { metric: "Pinjaman Jangka Pendek", value: 0 },
+        { metric: "Pinjaman Jangka Panjang", value: 404361000 },
+        { metric: "Ekuitas Pemilik", value: 6772664000 }
+      ],
+      cashflow: [
+        { metric: "Arus Kas dari Operasi", value: 1152758000 },
+        { metric: "Arus Kas dari Investasi", value: -582426000 },
+        { metric: "Arus Kas dari Pendanaan", value: -1333690000 }
+      ],
+      ratios: [
+        { 
+          metric: "Net Profit Margin", 
+          value: (1854878000 / 1084004000 * 100).toFixed(2),
+          suffix: "%" 
+        },
+        { 
+          metric: "Gross Profit Margin", 
+          value: (867681000 / 1084004000 * 100).toFixed(2),
+          suffix: "%" 
+        },
+        { 
+          metric: "Return on Assets", 
+          value: (1854878000 / 10472711000 * 100).toFixed(2),
+          suffix: "%" 
+        },
+        { 
+          metric: "Debt to Equity Ratio", 
+          value: ((0 + 404361000) / 6772664000).toFixed(2),
+          suffix: "x" 
+        }
+      ]
+    }
+  }
+}
+
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedEmiten, setSelectedEmiten] = useState("AALI.JK")
   const [emitenList, setEmitenList] = useState<Emiten[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [timePeriod, setTimePeriod] = useState("1M")
-  const [reportType, setReportType] = useState<"quarterly" | "annual">("quarterly")
+  const [timePeriod, setTimePeriod] = useState("3D") // Default to 3 days
+  const [reportType, setReportType] = useState<"quarterly" | "annual">("quarterly") // Add for financial reports
+
+  // Add this state:
+  const [newsItems, setNewsItems] = useState<Array<any>>([])
+  const [newsLoading, setNewsLoading] = useState(true)
+  const [newsError, setNewsError] = useState<string | null>(null)
+
+  // Add this state for tracking selected year
+  const [selectedYear, setSelectedYear] = useState("2024") // Default to current year
+
+  // Add these state variables to your DashboardPage component
+
+  // Financial data state
+  const [financialData, setFinancialData] = useState<any>(null);
+  const [financialLoading, setFinancialLoading] = useState(true);
+  const [financialError, setFinancialError] = useState<string | null>(null);
+
+  // Add this function to convert UI period strings to API period values
+  const mapPeriodToApiValue = (period: string): string => {
+    switch(period) {
+      case "3D": return "3days";
+      case "1W": return "1week";
+      case "1M": return "1month";
+      case "3M": return "3month";
+      case "6M": return "6m";
+      case "1Y": return "1y";
+      case "3Y": return "3y";
+      case "5Y": return "5y";
+      case "ALL": return "all";
+      default: return "1month";
+    }
+  }
 
   // Add this function to handle search
   const handleSearch = (query: string) => {
@@ -118,9 +232,9 @@ export default function DashboardPage() {
     // Update selected emiten
     setSelectedEmiten(formattedQuery)
   }
-
+  
   // Handler for chart data updates
-  const handleChartDataUpdate = (data: any) => {
+  const handleChartDataUpdate = (data: StockData | null) => {
     setIsLoading(false)
     
     if (!data) {
@@ -147,9 +261,10 @@ export default function DashboardPage() {
     setEmitenList([updatedEmitenData])
   }
 
+  // Modified handler to do additional work if needed when period changes
   const handlePeriodChange = (period: string) => {
     setTimePeriod(period)
-    // You can add logic here to fetch new data based on the selected period
+    // The StockChart will re-fetch data automatically due to the period dependency
   }
 
   // Default emiten data with loading/no data states
@@ -162,19 +277,119 @@ export default function DashboardPage() {
     change: isLoading ? "Loading..." : "No Data"
   }
 
+  // Add this useEffect to fetch news when emiten changes
+  useEffect(() => {
+    const fetchNews = async () => {
+      setNewsLoading(true);
+      setNewsError(null);
+      
+      try {
+        const emitenCode = selectedEmiten.replace('.JK', '');
+        const response = await API.getNewsData(emitenCode, 3, 0); // Limit to 3 news items
+        
+        // Check response format
+        if (response && typeof response === 'object' && response.message && !Array.isArray(response)) {
+          // This is a "no data" response with a message from the API
+          console.log(`News API message: ${response.message}`);
+          setNewsItems([]);
+        } else if (Array.isArray(response)) {
+          // Valid data array returned
+          console.log(`Received ${response.length} news items`);
+          setNewsItems(response);
+        } else {
+          // Unexpected response format
+          console.error("Unexpected API response format:", response);
+          setNewsItems([]);
+        }
+      } catch (error: any) {
+        // This is a technical error (network, server down, etc.)
+        console.error("Error fetching news:", error);
+        setNewsError(error?.message || "Failed to load news");
+      } finally {
+        setNewsLoading(false);
+      }
+    };
+    
+    if (selectedEmiten) {
+      fetchNews();
+    }
+  }, [selectedEmiten])
+
+  // Add this useEffect to fetch financial data when emiten or year changes
+  useEffect(() => {
+    const fetchFinancialData = async () => {
+      setFinancialLoading(true);
+      setFinancialError(null);
+      
+      try {
+        const emitenCode = selectedEmiten.replace('.JK', '');
+        const response = await API.getFinancialData(emitenCode, selectedYear);
+        
+        console.log("Financial API response:", response);
+        
+        // Check if response is an error message but didn't throw an exception
+        if (response && typeof response === 'object') {
+          if (response.error || response.message) {
+            // API returned an error message in a successful response
+            console.log("No financial data available:", response.message || response.error);
+            setFinancialData(null); // Treat as no data case
+          } else if (!response.Assets && !response.SalesAndRevenue) {
+            // Response doesn't have expected financial data fields
+            console.log("Invalid financial data format");
+            setFinancialData(null); // Treat as no data case
+          } else {
+            // Valid financial data
+            setFinancialData(response);
+          }
+        } else {
+          // Unexpected response format
+          console.error("Unexpected API response format:", response);
+          setFinancialData(null);
+        }
+      } catch (error: any) {
+        // Technical API error (network issues, server down, etc)
+        console.error("Error fetching financial data:", error);
+        setFinancialError(error?.message || "Failed to load financial data");
+      } finally {
+        setFinancialLoading(false);
+      }
+    };
+    
+    fetchFinancialData();
+  }, [selectedEmiten, selectedYear]);
+
+  // Add this helper function to format large numbers as T (trillion), B (billion), or M (million)
+  const formatCurrency = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return "N/A";
+    
+    // Convert to absolute value for formatting
+    const absValue = Math.abs(value);
+    
+    if (absValue >= 1e12) {
+      return `Rp ${(value / 1e12).toFixed(2)}T`;
+    } else if (absValue >= 1e9) {
+      return `Rp ${(value / 1e9).toFixed(2)}T`;
+    } else if (absValue >= 1e6) {
+      return `Rp ${(value / 1e6).toFixed(2)}M`;
+    } else {
+      return `Rp ${value.toLocaleString("id-ID")}`;
+    }
+  };
+
+  // Add this helper function to format percentage values
+  const formatPercentage = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return "N/A";
+    return `${(value * 100).toFixed(2)}%`;
+  };
+
   if (error) {
     return <div className="h-screen flex items-center justify-center text-red-400">Error: {error}</div>
   }
 
   return (
-    <div className="flex min-h-screen bg-[#0f172a]">
-      <Sidebar 
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onSearch={handleSearch}
-      />
-      
-      <div className="flex-1">
+    // Changed the layout to remove sidebar
+    <div className="min-h-screen bg-[#0f172a]">
+      <div className="flex flex-col w-full">
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[#1e293b] bg-[#0f172a]/80 px-4 backdrop-blur-sm md:px-6">
           <div className="flex items-center gap-4">
             <MobileSidebar 
@@ -182,7 +397,62 @@ export default function DashboardPage() {
               onSearchChange={setSearchQuery}
               onSearch={handleSearch}
             />
-            <h1 className="text-xl font-semibold text-white">Dashboard</h1>
+            <div className="flex items-center gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-6 w-6 text-indigo-500"
+              >
+                <path d="M3 3v18h18" />
+                <path d="m19 9-5 5-4-4-3 3" />
+              </svg>
+              <h1 className="text-xl font-semibold text-white">SahamSederhana</h1>
+            </div>
+          </div>
+          
+          {/* New search box and clock container */}
+          <div className="flex items-center gap-4">
+            {/* Emiten search box */}
+            <div className="relative hidden md:block">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  className="h-4 w-4 text-slate-400" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" 
+                  />
+                </svg>
+              </div>
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSearch(searchQuery);
+                }}
+              >
+                <input 
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari emiten..."
+                  className="h-9 w-64 rounded-md border border-[#1e293b] bg-[#1e293b]/50 py-2 pl-10 pr-4 text-sm text-white placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </form>
+            </div>
+            
+            {/* Clock stays on the right */}
+            <RealtimeClock />
           </div>
         </header>
 
@@ -201,8 +471,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <CardDescription className="text-slate-400">
-                      IDX: {selectedEmitenData.symbol} 
-                      {/* | Market Cap: {selectedEmitenData.marketCap} */}
+                      IDX: {selectedEmitenData.symbol}
                     </CardDescription>
                   </div>
                   <div className="text-right">
@@ -228,10 +497,10 @@ export default function DashboardPage() {
                     variant="ghost"
                     size="sm"
                     className="text-slate-400 hover:bg-[#1e293b] hover:text-white data-[active=true]:bg-[#1e293b] data-[active=true]:text-white"
-                    data-active={timePeriod === "1D"}
-                    onClick={() => handlePeriodChange("1D")}
+                    data-active={timePeriod === "3D"}
+                    onClick={() => handlePeriodChange("3D")}
                   >
-                    1D
+                    3D
                   </Button>
                   <Button
                     variant="ghost"
@@ -285,6 +554,7 @@ export default function DashboardPage() {
                   <StockChart 
                     darkMode={true} 
                     emiten={selectedEmiten} 
+                    period={mapPeriodToApiValue(timePeriod)}
                     onDataUpdate={handleChartDataUpdate}
                   />
                 </div>
@@ -297,20 +567,80 @@ export default function DashboardPage() {
                   <CardTitle className="text-base text-white">Berita Terkini</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
+                  {/* Replace the news display section with this improved version */}
                   <div className="divide-y divide-[#1e293b]">
-                    {(newsDatabase[selectedEmiten] || []).slice(0, 3).map((news) => (
-                      <NewsCard
-                        key={news.id}
-                        title={news.title}
-                        summary={news.summary}
-                        date={news.date}
-                        source={news.source}
-                        darkMode={true}
-                      />
-                    ))}
-                    {!newsDatabase[selectedEmiten] && (
-                      <div className="flex items-center justify-center p-6 text-slate-400">
-                        Tidak ada berita terkini untuk emiten ini
+                    {newsLoading ? (
+                      <div className="flex items-center justify-center p-6">
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-t-transparent border-indigo-500"></div>
+                        <span className="ml-3 text-slate-300">Memuat berita...</span>
+                      </div>
+                    ) : newsError ? (
+                      // Technical API error
+                      <div className="flex items-center justify-center p-6">
+                        <div className="flex flex-col items-center text-center">
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            className="h-6 w-6 text-red-400 mb-2" 
+                            fill="none" 
+                            viewBox="0 0 24 24" 
+                            stroke="currentColor"
+                          >
+                            <path 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round" 
+                              strokeWidth={2} 
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                            />
+                          </svg>
+                          <p className="text-red-400 text-sm">{newsError}</p>
+                        </div>
+                      </div>
+                    ) : newsItems.length > 0 ? (
+                      newsItems.slice(0, 3).map((news, index) => (
+                        <div key={news._id || index} className="p-4">
+                          <div className="mb-2">
+                            <h3 className="line-clamp-2 font-medium text-white">
+                              {news.Title || "No Title"}
+                            </h3>
+                          </div>
+                          <p className="line-clamp-3 mb-3 text-sm text-slate-400">
+                            {news.Ringkasan || "No summary available"}
+                          </p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-slate-500">
+                              {news.Date || "N/A"}
+                            </span>
+                            <a 
+                              href={news.Link} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-indigo-400 hover:text-indigo-300"
+                            >
+                              {news.Link ? "Baca di Sumber" : "Tidak ada link"}
+                            </a>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      // Empty data (API worked but no news found)
+                      <div className="flex items-center justify-center p-6">
+                        <div className="flex flex-col items-center text-center">
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            className="h-6 w-6 text-slate-400 mb-2" 
+                            fill="none" 
+                            viewBox="0 0 24 24" 
+                            stroke="currentColor"
+                          >
+                            <path 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round" 
+                              strokeWidth={2} 
+                              d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" 
+                            />
+                          </svg>
+                          <p className="text-slate-400 text-sm">Tidak ada berita terkini untuk emiten {selectedEmiten.replace('.JK', '')}</p>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -323,328 +653,184 @@ export default function DashboardPage() {
                         variant="ghost" 
                         className="w-full justify-between text-sm text-slate-400 hover:text-white"
                       >
-                        Lihat semua berita {selectedEmitenData.symbol.replace('.JK', '')}
+                        Lihat semua berita {selectedEmiten.replace('.JK', '')}
                         <ChevronDown className="h-4 w-4" />
                       </Button>
                     </Link>
                   </div>
                 </CardContent>
               </Card>
-
             </div>
           </div>
 
-          <Card className="border-[#1e293b] bg-[#0f172a] shadow-lg">
-            <CardHeader className="border-b border-[#1e293b] px-6 pb-3 pt-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <CardTitle className="text-white">Laporan Keuangan</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-slate-400 hover:bg-[#1e293b] hover:text-white data-[active=true]:bg-[#1e293b] data-[active=true]:text-white"
-                      data-active={reportType === "quarterly"}
-                      onClick={() => setReportType("quarterly")}
-                    >
-                      Quartal
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-slate-400 hover:bg-[#1e293b] hover:text-white data-[active=true]:bg-[#1e293b] data-[active=true]:text-white"
-                      data-active={reportType === "annual"}
-                      onClick={() => setReportType("annual")}
-                    >
-                      Tahunan
-                    </Button>
-                  </div>
+          {/* Financial report section - two-column layout */}
+          <Card className="border-[#1e293b] bg-[#0f172a] shadow-lg mt-8">
+            <CardHeader className="border-b border-[#1e293b] px-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
+                <CardTitle className="text-white">Laporan Keuangan</CardTitle>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-400">Pilih tahun:</span>
+                  <Select 
+                    value={selectedYear} 
+                    onValueChange={setSelectedYear}
+                  >
+                    <SelectTrigger className="h-8 w-[100px] border-[#1e293b] bg-[#1e293b] text-slate-300">
+                      <SelectValue placeholder="Tahun" />
+                    </SelectTrigger>
+                    <SelectContent className="border-[#1e293b] bg-[#0f172a] text-slate-300">
+                      <SelectItem value="2024">2024</SelectItem>
+                      <SelectItem value="2023">2023</SelectItem>
+                      <SelectItem value="2022">2022</SelectItem>
+                      <SelectItem value="2021">2021</SelectItem>
+                      <SelectItem value="2020">2020</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                {reportType === "quarterly" && (
-                  <div className="flex items-center gap-2">
-                    <Select defaultValue="2023">
-                      <SelectTrigger className="h-8 w-[180px] border-[#1e293b] bg-[#1e293b] text-slate-300">
-                        <SelectValue placeholder="Pilih Periode" />
-                      </SelectTrigger>
-                      <SelectContent className="border-[#1e293b] bg-[#0f172a] text-slate-300">
-                        <SelectItem value="2023">2023</SelectItem>
-                        <SelectItem value="2022">2022</SelectItem>
-                        <SelectItem value="2021">2021</SelectItem>
-                        <SelectItem value="2020">2020</SelectItem>
-                        <SelectItem value="2019">2019</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
               </div>
             </CardHeader>
-            <CardContent className="p-0">
-              <Tabs defaultValue="overview" className="w-full">
-                <div className="border-b border-[#1e293b] px-6">
-                  <TabsList className="h-12 w-full justify-start gap-6 bg-transparent p-0">
-                    <TabsTrigger
-                      value="overview"
-                      className="h-12 border-b-2 border-transparent text-slate-400 data-[state=active]:border-indigo-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none"
-                    >
-                      Ikhtisar
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="income"
-                      className="h-12 border-b-2 border-transparent text-slate-400 data-[state=active]:border-indigo-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none"
-                    >
-                      Laba Rugi
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="balance"
-                      className="h-12 border-b-2 border-transparent text-slate-400 data-[state=active]:border-indigo-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none"
-                    >
-                      Neraca
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="cashflow"
-                      className="h-12 border-b-2 border-transparent text-slate-400 data-[state=active]:border-indigo-500 data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none"
-                    >
-                      Arus Kas
-                    </TabsTrigger>
-                  </TabsList>
+            <CardContent className="p-6">
+              {financialLoading ? (
+                <div className="flex items-center justify-center p-10">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-t-transparent border-indigo-500"></div>
+                  <span className="ml-3 text-slate-300">Memuat data keuangan...</span>
                 </div>
-                <TabsContent value="overview" className="m-0 p-6">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-[#1e293b] hover:bg-transparent">
-                        <TableHead className="w-[250px] bg-[#1e293b] text-slate-300">Metrik</TableHead>
-                        {reportType === "quarterly" ? (
-                          <>
-                            <TableHead className="bg-[#1e293b] text-slate-300">Q4</TableHead>
-                            <TableHead className="bg-[#1e293b] text-slate-300">Q3</TableHead>
-                            <TableHead className="bg-[#1e293b] text-slate-300">Q2</TableHead>
-                            <TableHead className="bg-[#1e293b] text-slate-300">Q1</TableHead>
-                          </>
-                        ) : (
-                          <>
-                            <TableHead className="bg-[#1e293b] text-slate-300">2023</TableHead>
-                            <TableHead className="bg-[#1e293b] text-slate-300">2022</TableHead>
-                            <TableHead className="bg-[#1e293b] text-slate-300">2021</TableHead>
-                            <TableHead className="bg-[#1e293b] text-slate-300">2020</TableHead>
-                            <TableHead className="bg-[#1e293b] text-slate-300">2019</TableHead>
-                          </>
-                        )}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Pendapatan</TableCell>
-                        {reportType === "quarterly" ? (
-                          <>
-                            <TableCell className="text-slate-300">Rp 27.3T</TableCell>
-                            <TableCell className="text-slate-300">Rp 26.1T</TableCell>
-                            <TableCell className="text-slate-300">Rp 25.7T</TableCell>
-                            <TableCell className="text-slate-300">Rp 24.2T</TableCell>
-                          </>
-                        ) : (
-                          <>
-                            <TableCell className="text-slate-300">Rp 103.3T</TableCell>
-                            <TableCell className="text-slate-300">Rp 97.2T</TableCell>
-                            <TableCell className="text-slate-300">Rp 92.5T</TableCell>
-                            <TableCell className="text-slate-300">Rp 88.1T</TableCell>
-                            <TableCell className="text-slate-300">Rp 84.2T</TableCell>
-                          </>
-                        )}
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Laba Kotor</TableCell>
-                        {reportType === "quarterly" ? (
-                          <>
-                            <TableCell className="text-slate-300">Rp 19.5T</TableCell>
-                            <TableCell className="text-slate-300">Rp 18.9T</TableCell>
-                            <TableCell className="text-slate-300">Rp 18.3T</TableCell>
-                            <TableCell className="text-slate-300">Rp 17.1T</TableCell>
-                          </>
-                        ) : (
-                          <>
-                            <TableCell className="text-slate-300">Rp 73.8T</TableCell>
-                            <TableCell className="text-slate-300">Rp 69.0T</TableCell>
-                            <TableCell className="text-slate-300">Rp 65.2T</TableCell>
-                            <TableCell className="text-slate-300">Rp 61.8T</TableCell>
-                            <TableCell className="text-slate-300">Rp 58.9T</TableCell>
-                          </>
-                        )}
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Laba Bersih</TableCell>
-                        {reportType === "quarterly" ? (
-                          <>
-                            <TableCell className="text-slate-300">Rp 11.2T</TableCell>
-                            <TableCell className="text-slate-300">Rp 10.8T</TableCell>
-                            <TableCell className="text-slate-300">Rp 10.5T</TableCell>
-                            <TableCell className="text-slate-300">Rp 9.8T</TableCell>
-                          </>
-                        ) : (
-                          <>
-                            <TableCell className="text-slate-300">Rp 42.3T</TableCell>
-                            <TableCell className="text-slate-300">Rp 39.5T</TableCell>
-                            <TableCell className="text-slate-300">Rp 37.2T</TableCell>
-                            <TableCell className="text-slate-300">Rp 35.1T</TableCell>
-                            <TableCell className="text-slate-300">Rp 33.4T</TableCell>
-                          </>
-                        )}
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">EPS</TableCell>
-                        {reportType === "quarterly" ? (
-                          <>
-                            <TableCell className="text-slate-300">Rp 455</TableCell>
-                            <TableCell className="text-slate-300">Rp 440</TableCell>
-                            <TableCell className="text-slate-300">Rp 425</TableCell>
-                            <TableCell className="text-slate-300">Rp 398</TableCell>
-                          </>
-                        ) : (
-                          <>
-                            <TableCell className="text-slate-300">Rp 1,718</TableCell>
-                            <TableCell className="text-slate-300">Rp 1,608</TableCell>
-                            <TableCell className="text-slate-300">Rp 1,512</TableCell>
-                            <TableCell className="text-slate-300">Rp 1,423</TableCell>
-                            <TableCell className="text-slate-300">Rp 1,342</TableCell>
-                          </>
-                        )}
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">ROE</TableCell>
-                        {reportType === "quarterly" ? (
-                          <>
-                            <TableCell className="text-slate-300">20.5%</TableCell>
-                            <TableCell className="text-slate-300">20.1%</TableCell>
-                            <TableCell className="text-slate-300">19.8%</TableCell>
-                            <TableCell className="text-slate-300">19.2%</TableCell>
-                          </>
-                        ) : (
-                          <>
-                            <TableCell className="text-slate-300">20.5%</TableCell>
-                            <TableCell className="text-slate-300">19.2%</TableCell>
-                            <TableCell className="text-slate-300">18.4%</TableCell>
-                            <TableCell className="text-slate-300">17.8%</TableCell>
-                            <TableCell className="text-slate-300">17.2%</TableCell>
-                          </>
-                        )}
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TabsContent>
-                <TabsContent value="income" className="m-0 p-6">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-[#1e293b] hover:bg-transparent">
-                        <TableHead className="w-[250px] bg-[#1e293b] text-slate-300">Metrik</TableHead>
-                        <TableHead className="bg-[#1e293b] text-slate-300">Q2 2023</TableHead>
-                        <TableHead className="bg-[#1e293b] text-slate-300">Q1 2023</TableHead>
-                        <TableHead className="bg-[#1e293b] text-slate-300">YoY %</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Pendapatan Bunga</TableCell>
-                        <TableCell className="text-slate-300">Rp 18.2T</TableCell>
-                        <TableCell className="text-slate-300">Rp 17.5T</TableCell>
-                        <TableCell className="text-emerald-400">+4.0%</TableCell>
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Pendapatan Non-Bunga</TableCell>
-                        <TableCell className="text-slate-300">Rp 7.5T</TableCell>
-                        <TableCell className="text-slate-300">Rp 6.7T</TableCell>
-                        <TableCell className="text-emerald-400">+11.9%</TableCell>
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Beban Operasional</TableCell>
-                        <TableCell className="text-slate-300">Rp 9.8T</TableCell>
-                        <TableCell className="text-slate-300">Rp 9.5T</TableCell>
-                        <TableCell className="text-red-400">+3.2%</TableCell>
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Laba Sebelum Pajak</TableCell>
-                        <TableCell className="text-slate-300">Rp 13.2T</TableCell>
-                        <TableCell className="text-slate-300">Rp 12.3T</TableCell>
-                        <TableCell className="text-emerald-400">+7.3%</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TabsContent>
-                <TabsContent value="balance" className="m-0 p-6">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-[#1e293b] hover:bg-transparent">
-                        <TableHead className="w-[250px] bg-[#1e293b] text-slate-300">Metrik</TableHead>
-                        <TableHead className="bg-[#1e293b] text-slate-300">Q2 2023</TableHead>
-                        <TableHead className="bg-[#1e293b] text-slate-300">Q1 2023</TableHead>
-                        <TableHead className="bg-[#1e293b] text-slate-300">YoY %</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Total Aset</TableCell>
-                        <TableCell className="text-slate-300">Rp 1,350T</TableCell>
-                        <TableCell className="text-slate-300">Rp 1,320T</TableCell>
-                        <TableCell className="text-emerald-400">+2.3%</TableCell>
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Kredit</TableCell>
-                        <TableCell className="text-slate-300">Rp 720T</TableCell>
-                        <TableCell className="text-slate-300">Rp 705T</TableCell>
-                        <TableCell className="text-emerald-400">+2.1%</TableCell>
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Dana Pihak Ketiga</TableCell>
-                        <TableCell className="text-slate-300">Rp 980T</TableCell>
-                        <TableCell className="text-slate-300">Rp 965T</TableCell>
-                        <TableCell className="text-emerald-400">+1.6%</TableCell>
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Ekuitas</TableCell>
-                        <TableCell className="text-slate-300">Rp 215T</TableCell>
-                        <TableCell className="text-slate-300">Rp 208T</TableCell>
-                        <TableCell className="text-emerald-400">+3.4%</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TabsContent>
-                <TabsContent value="cashflow" className="m-0 p-6">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-[#1e293b] hover:bg-transparent">
-                        <TableHead className="w-[250px] bg-[#1e293b] text-slate-300">Metrik</TableHead>
-                        <TableHead className="bg-[#1e293b] text-slate-300">Q2 2023</TableHead>
-                        <TableHead className="bg-[#1e293b] text-slate-300">Q1 2023</TableHead>
-                        <TableHead className="bg-[#1e293b] text-slate-300">YoY %</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Arus Kas Operasi</TableCell>
-                        <TableCell className="text-slate-300">Rp 15.2T</TableCell>
-                        <TableCell className="text-slate-300">Rp 14.3T</TableCell>
-                        <TableCell className="text-emerald-400">+6.3%</TableCell>
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Arus Kas Investasi</TableCell>
-                        <TableCell className="text-slate-300">Rp -5.8T</TableCell>
-                        <TableCell className="text-slate-300">Rp -4.9T</TableCell>
-                        <TableCell className="text-red-400">+18.4%</TableCell>
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Arus Kas Pendanaan</TableCell>
-                        <TableCell className="text-slate-300">Rp -3.2T</TableCell>
-                        <TableCell className="text-slate-300">Rp -2.8T</TableCell>
-                        <TableCell className="text-red-400">+14.3%</TableCell>
-                      </TableRow>
-                      <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
-                        <TableCell className="font-medium text-white">Kas Bersih</TableCell>
-                        <TableCell className="text-slate-300">Rp 6.2T</TableCell>
-                        <TableCell className="text-slate-300">Rp 6.6T</TableCell>
-                        <TableCell className="text-red-400">-6.1%</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </TabsContent>
-              </Tabs>
+              ) : financialError ? (
+                <div className="flex flex-col items-center justify-center p-10 text-center">
+                  <svg 
+                    xmlns="http://www.w3.org/2000/svg" 
+                    className="h-10 w-10 text-red-400 mb-4" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" 
+                    />
+                  </svg>
+                  <p className="text-red-400 mb-2">{financialError}</p>
+                  <p className="text-sm text-slate-400">Coba pilih tahun yang berbeda</p>
+                </div>
+              ) : !financialData ? (
+                <div className="flex flex-col items-center justify-center p-10 text-center">
+                  <p className="text-slate-400">Tidak ada data keuangan tersedia untuk {selectedEmiten.replace('.JK', '')} tahun {selectedYear}</p>
+                </div>
+              ) : (
+                <>
+                  {/* Two-column table layout */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Left column table */}
+                    <div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-[#1e293b] hover:bg-transparent">
+                            <TableHead className="w-[180px] bg-[#1e293b] text-slate-300">Metrik</TableHead>
+                            <TableHead className="bg-[#1e293b] text-slate-300">Nilai</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Pendapatan</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.SalesAndRevenue)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Laba Kotor</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.GrossProfit)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Laba Operasi</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.ProfitFromOperation)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Laba Bersih</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.ProfitLoss)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Kas</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.CashAndCashEquivalents)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Total Aset</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.Assets)}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* Right column table */}
+                    <div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-[#1e293b] hover:bg-transparent">
+                            <TableHead className="w-[180px] bg-[#1e293b] text-slate-300">Metrik</TableHead>
+                            <TableHead className="bg-[#1e293b] text-slate-300">Nilai</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Pinjaman Jangka Pendek</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.ShortTermBankLoans)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Pinjaman Jangka Panjang</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.LongTermBankLoans)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Total Ekuitas</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.EquityAttributableToEquityOwnersOfParentEntity)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Arus Kas Operasi</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.NetCashFlowOp)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Arus Kas Investasi</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.NetCashFlowInv)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="border-[#1e293b] hover:bg-[#1e293b]/50">
+                            <TableCell className="font-medium text-white">Arus Kas Pendanaan</TableCell>
+                            <TableCell className="text-slate-300">
+                              {formatCurrency(financialData.NetCashFlowFin)}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+
+                  {/* Period information */}
+                  <div className="mt-4 text-sm text-slate-400 text-center">
+                    <p>
+                      Periode: {financialData.CurrentPeriodStartDate} - {financialData.CurrentPeriodEndDate} | 
+                      Jenis Laporan: {financialData.PeriodOfFinancialStatementsSubmissions || "Annual"}
+                    </p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

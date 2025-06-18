@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { format, parseISO } from "date-fns" // Make sure you have date-fns installed
 import {
   Area,
   AreaChart,
@@ -10,81 +11,89 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-
-// Ubah fungsi getMonthName menjadi getFormattedDate
-const getFormattedDate = (dateStr: string) => {
-  const [day, month, year] = dateStr.split("/")
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-  return `${monthNames[parseInt(month, 10) - 1]} ${year}`
-}
+import { API } from "@/services/api"
+import { StockData, StockDataPoint } from "@/types/api"
 
 type StockChartProps = {
   darkMode?: boolean
   emiten?: string
-  onDataUpdate?: (data: any) => void  // Tambahkan prop ini
-
+  period?: string
+  onDataUpdate?: (data: StockData | null) => void
 }
 
-export function StockChart({ darkMode = false, emiten, onDataUpdate }: StockChartProps) {
-  const [data, setData] = useState<any[]>([])
+export function StockChart({ darkMode = false, emiten, period = 'monthly', onDataUpdate }: StockChartProps) {
+  const [data, setData] = useState<Array<{name: string, price: number, high: number, low: number}>>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [windowWidth, setWindowWidth] = useState(0)
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        setIsLoading(true)
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL
-        const res = await fetch(`${apiUrl}/api/stock/${emiten}?period=monthly`,{
-          // headers: {
-          //   "ngrok-skip-browser-warning": "true",
-          // },
-        })
-        
-        if (!res.ok) {
-          throw new Error('Network response was not ok')
-        }
+      if (!emiten) {
+        setIsLoading(false);
+        return;
+      }
 
-        const jsonData = await res.json()
+      try {
+        setIsLoading(true);
+        
+        // Map UI period values to API period values
+        let apiPeriod = period.toLowerCase();
+        if (apiPeriod === '3d') apiPeriod = '3days';
+        if (apiPeriod === '1w') apiPeriod = '1week';
+        if (apiPeriod === '1m') apiPeriod = '1month'; 
+        if (apiPeriod === '3m') apiPeriod = '3month';
+        if (apiPeriod === '1y' || apiPeriod === '3y' || apiPeriod === '5y') {
+          // These are already in the correct format
+        }
+        if (apiPeriod === 'all') apiPeriod = 'all';
+        
+        const stockData = await API.getStockData(emiten, apiPeriod);
         
         // Transform the data for the chart - updated to match API format
-        const transformedData = jsonData.map((item: any) => ({
+        const transformedData = stockData.map((item: StockDataPoint) => ({
           name: getFormattedDate(item.Date),
           price: item.Close,
           high: item.High,
           low: item.Low
-        }))
+        }));
 
-        setData(transformedData)
+        setData(transformedData);
         
         // Update parent component with latest data
-        if (onDataUpdate) {
-          const latestData = jsonData[jsonData.length - 1]
+        if (onDataUpdate && stockData.length >= 2) {
+          const latestData = stockData[stockData.length - 1];
+          const firstData = stockData[0]; // Changed to first data point in period
+          
+          // Calculate change over the entire period
+          const changePercentValue = ((latestData.Close - firstData.Close) / firstData.Close * 100);
+          const changePercent = changePercentValue.toFixed(2);
+          const changePrefix = changePercentValue > 0 ? '+' : ''; // Add plus sign for positive values
+          
           onDataUpdate({
             symbol: emiten,
             price: latestData.Close,
-            // Calculate change percentage
-            change: ((latestData.Close - jsonData[jsonData.length - 2].Close) / jsonData[jsonData.length - 2].Close * 100).toFixed(2) + '%'
-          })
+            change: `${changePrefix}${changePercent}%`,
+            data: stockData
+          });
         }
 
       } catch (error) {
-        console.error("Error fetching stock data:", error)
-        setError('Failed to load data')
-        setData([])
+        console.error("Error fetching stock data:", error);
+        setError('Failed to load data');
+        setData([]);
         if (onDataUpdate) {
-          onDataUpdate(null)
+          onDataUpdate(null);
         }
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
     if (emiten) {
-      fetchData()
+      fetchData();
     }
-  }, [emiten])
+  }, [emiten, period]); // Add period as dependency to re-fetch when it changes
 
   useEffect(() => {
     setWindowWidth(window.innerWidth)
@@ -99,6 +108,28 @@ export function StockChart({ darkMode = false, emiten, onDataUpdate }: StockChar
 
   const formatRupiah = (value: number) => {
     return `Rp ${value.toLocaleString("id-ID")}`
+  }
+
+  // Updated date formatter function that returns shorter format for X-axis
+  const getFormattedDate = (dateString: string) => {
+    try {
+      const date = parseISO(dateString);
+      // For X-axis labels, use a shorter format
+      return format(date, 'MMM yyyy');
+    } catch (error) {
+      return dateString;
+    }
+  }
+
+  // New formatter function specifically for tooltip that includes day
+  const getDetailedDate = (dateString: string) => {
+    try {
+      const date = parseISO(dateString);
+      // For tooltip, use a more detailed format with day included
+      return format(date, 'dd MMM yyyy');
+    } catch (error) {
+      return dateString;
+    }
   }
 
   // Only show loading state initially
@@ -175,9 +206,23 @@ export function StockChart({ darkMode = false, emiten, onDataUpdate }: StockChar
               fill: darkMode ? "#94a3b8" : "#64748b",
             }}
             width={80}
+            // Add these properties to make price changes more visible
+            padding={{ top: 10, bottom: 10 }}
+            allowDataOverflow={true}
+            scale="linear"
+            // Custom domain calculation for better visualization
+            domain={[
+              (dataMin: number) => {
+                // Set lower bound to be slightly below minimum value (e.g., 5% lower)
+                return Math.floor(dataMin * 0.98);
+              },
+              (dataMax: number) => {
+                // Set upper bound to be slightly above maximum value (e.g., 5% higher)
+                return Math.ceil(dataMax * 1.02);
+              }
+            ]}
           />
-          <Tooltip
-            formatter={(value, name) => {
+          <Tooltip            formatter={(value: any, name: string) => {
               switch(name) {
                 case 'price':
                   return [`${formatRupiah(Number(value))}`, "Close"]
@@ -189,7 +234,7 @@ export function StockChart({ darkMode = false, emiten, onDataUpdate }: StockChar
                   return [value, name]
               }
             }}
-            labelFormatter={(label) => `Tanggal: ${label}`}
+            labelFormatter={(label: any) => `Tanggal: ${label}`}
             contentStyle={{
               borderRadius: "8px",
               border: darkMode ? "1px solid #1e293b" : "1px solid #e2e8f0",

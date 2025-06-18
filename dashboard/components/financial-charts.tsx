@@ -132,10 +132,18 @@ export function CashFlowChart({ data }: { data: any }) {
 }
 
 export function AssetCompositionChart({ data }: { data: any }) {
+  if (!data || !data.Assets) {
+    return <div className="flex items-center justify-center h-52 text-slate-400">Data tidak tersedia</div>;
+  }
+
+  // Calculate components for the chart
+  const cashPercent = (data.CashAndCashEquivalents / data.Assets) * 100;
+  const otherAssetsPercent = 100 - cashPercent;
+
   const chartData = [
-    { name: 'Kas & Setara Kas', value: data.CashAndCashEquivalents },
-    { name: 'Aset Lainnya', value: data.Assets - data.CashAndCashEquivalents }
-  ]
+    { name: "Kas", value: cashPercent },
+    { name: "Aset Lainnya", value: otherAssetsPercent }
+  ];
 
   const COLORS = ['#22c55e', '#818cf8']
 
