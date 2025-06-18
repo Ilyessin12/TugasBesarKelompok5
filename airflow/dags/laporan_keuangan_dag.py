@@ -13,7 +13,7 @@ default_args = {
 with DAG(
     dag_id='laporan_keuangan_extraction_pipeline',
     default_args=default_args,
-    schedule_interval='@weekly',  # Laporan keuangan tidak perlu harian
+    schedule_interval='0 0 1 */3 *',  # Every 3 months (quarterly)
     catchup=False,
     tags=['bigdata5', 'extraction', 'laporan-keuangan'],
     description='Pipeline untuk ekstraksi laporan keuangan'
