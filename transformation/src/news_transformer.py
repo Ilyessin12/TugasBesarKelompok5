@@ -1,5 +1,6 @@
 import os
 import json
+from bson.objectid import ObjectId
 import logging
 from dotenv import load_dotenv
 import pymongo
@@ -10,6 +11,18 @@ import google.generativeai as genai
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Custom JSON encoder to handle ObjectId
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        logger.debug(f"CustomJSONEncoder attempting to serialize type: {type(o)}")
+        if isinstance(o, ObjectId):
+            logger.debug("CustomJSONEncoder converting ObjectId to string")
+            return str(o)
+        elif isinstance(o, datetime):
+            logger.debug("CustomJSONEncoder converting datetime to isoformat string")
+            return o.isoformat()
+        return super().default(o)
 
 def summarize_text_with_gemini(text, max_length=150, retries=3):
     for attempt in range(retries):
@@ -55,7 +68,7 @@ def save_checkpoint(results, part, batch_num):
         checkpoint_filename = os.path.join(base_dir, f"checkpoint_pt{part}_batch{batch_num}.json")
         os.makedirs(base_dir, exist_ok=True)
         with open(checkpoint_filename, 'w', encoding='utf-8') as f:
-            json.dump(results, f, indent=4, ensure_ascii=False)
+            json.dump(results, f, indent=4, ensure_ascii=False, cls=CustomJSONEncoder)
         logger.info("Checkpoint %d saved to %s", batch_num, checkpoint_filename)
         return checkpoint_filename
     except Exception as e:
@@ -72,7 +85,7 @@ def process_news_data_from_mongo(checkpoint_interval=100):
         client = pymongo.MongoClient(connection_string)
         db = client["Big_Data_kel_5"]
         collection = db["Docker_Scraping_Berita"]
-        output_collection = db["Docker_Transformasi_Berita"]
+        output_collection = db["Docker_Transformasi_Berita2"]
         
         logger.info("Connecting to MongoDB: %s, Collection: %s", "Big_Data_kel_5", "Data_Berita")
         
@@ -83,7 +96,7 @@ def process_news_data_from_mongo(checkpoint_interval=100):
             raise ValueError("Collection 'Data_Berita' not found")
         
         # Fetch news data
-        news_data = list(collection.find())
+        news_data = list(collection.find().limit(1))
         logger.info("Processing %d news items from MongoDB", len(news_data))
         
         if not news_data:
