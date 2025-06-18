@@ -96,7 +96,7 @@ def process_news_data_from_mongo(checkpoint_interval=100):
             raise ValueError("Collection 'Data_Berita' not found")
         
         # Fetch news data
-        news_data = list(collection.find().limit(1))
+        news_data = list(collection.find().limit(5))
         logger.info("Processing %d news items from MongoDB", len(news_data))
         
         if not news_data:
@@ -131,9 +131,9 @@ def process_news_data_from_mongo(checkpoint_interval=100):
                             {"$set": {
                                 "Emiten": item.get("Emiten"),
                                 "Date": item.get("Date"),
-                                "Title": item.get("Title") or item.get("Judul"),
+                                "Judul": item.get("Title") or item.get("Judul"), # Key changed to "Judul"
                                 "Link": item.get("Link"),
-                                "Content": item.get("Content") or item.get("content"),
+                                # "Content" line removed
                                 "Ringkasan": item["Ringkasan"],
                                 "uploaded_at": item["uploaded_at"]
                             }},
@@ -154,9 +154,9 @@ def process_news_data_from_mongo(checkpoint_interval=100):
                     {"$set": {
                         "Emiten": item.get("Emiten"),
                         "Date": item.get("Date"),
-                        "Title": item.get("Title") or item.get("Judul"),
+                        "Judul": item.get("Title") or item.get("Judul"), # Key changed to "Judul"
                         "Link": item.get("Link"),
-                        "Content": item.get("Content") or item.get("content"),
+                        # "Content" line removed
                         "Ringkasan": item["Ringkasan"],
                         "uploaded_at": item["uploaded_at"]
                     }},
