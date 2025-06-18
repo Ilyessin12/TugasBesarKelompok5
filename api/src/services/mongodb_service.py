@@ -264,15 +264,16 @@ def get_news_summary_data(emiten, limit=20, skip=0):
         return None
 
 
-def get_financial_report_data(emiten):
+def get_financial_report_data(emiten, year=None):
     """
     Fetches financial report data for a given emiten.
     
     Args:
         emiten (str): The stock ticker symbol (e.g., 'AALI').
+        year (str, optional): The year of the report. Defaults to None (latest).
         
     Returns:
-        dict: A dictionary containing financial report data, or None if error.
+        dict: A dictionary containing financial report data, or None if error or not found.
     """
     if financial_report_collection is None:
         print("Error: Not connected to MongoDB financial report collection.")
@@ -285,8 +286,14 @@ def get_financial_report_data(emiten):
         # Query for the specific emiten
         query = {"EntityCode": emiten}
         
-        # Get the most recent financial report
-        financial_report = financial_report_collection.find_one(query, sort=[("_id", -1)])
+        if year:
+            # Filter by year using the 'CurrentPeriodEndDate' field, which is a string 'YYYY-MM-DD'.
+            # We use a regex to match documents where the field starts with the given year.
+            query["CurrentPeriodEndDate"] = {"$regex": f"^{year}-"}
+            financial_report = financial_report_collection.find_one(query)
+        else:
+            # If no year, get the most recent financial report
+            financial_report = financial_report_collection.find_one(query, sort=[("_id", -1)])
         
         if not financial_report:
             return None
