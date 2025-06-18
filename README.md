@@ -47,11 +47,10 @@ Fetches historical stock data for a given emiten, with options for data aggregat
 *   **Query Parameter**:
     *   `period` (string, optional, default: `all`): Specifies the aggregation period for the stock data.
         *   Valid values:
-            *   `daily`: Raw daily data (if available and filtered by other period parameters like `1y`, `3y`, `5y`).
-            *   `weekly`: Data aggregated weekly (Open: first, High: max, Low: min, Close: last, Volume: sum).
-            *   `monthly`: Data aggregated monthly.
-            *   `quarterly`: Data aggregated quarterly.
-            *   `yearly`: Data aggregated yearly.
+            *   `3days`: Data for the last 3 days
+            *   `1week`: Data for the last 1 week
+            *   `1month`: Data for the last 1 month
+            *   `3month`: Data for the last 3 month
             *   `1y`: Data for the last 1 year (daily granularity unless combined with other aggregation).
             *   `3y`: Data for the last 3 years.
             *   `5y`: Data for the last 5 years.

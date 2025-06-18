@@ -58,7 +58,7 @@ def get_stock_data(emiten, period='all'):
 
     Args:
         emiten (str): The stock ticker symbol (e.g., 'AALI.JK').
-        period (str): Aggregation period ('daily', 'monthly', 'yearly', '1y', '3y', '5y', 'all').
+        period (str): Aggregation period ('3days', '1week', '1month', '3month', '1y', '3y', '5y', 'all').
 
     Returns:
         list: A list of dictionaries containing the aggregated stock data, or None if error.
@@ -79,7 +79,15 @@ def get_stock_data(emiten, period='all'):
         now = datetime.now()
         start_date = None
 
-        if period == '1y':
+        if period == '3days':
+            start_date = now - timedelta(days=3)
+        elif period == '1week':
+            start_date = now - timedelta(weeks=1)
+        elif period == '1month':
+            start_date = now - timedelta(days=30)
+        elif period == '3month':
+            start_date = now - timedelta(days=90)
+        elif period == '1y':
             start_date = now - timedelta(days=365)
         elif period == '3y':
             start_date = now - timedelta(days=3*365)
@@ -141,45 +149,8 @@ def get_stock_data(emiten, period='all'):
             return []
 
         # --- Aggregation ---
-        agg_df = None
-        if period == 'weekly':
-            # Resample to weekly frequency. Use 'W' for week end or 'W-MON' for week start on Monday.
-            agg_df = df.resample('W').agg(
-                Open=('Open', 'first'),
-                High=('High', 'max'),
-                Low=('Low', 'min'),
-                Close=('Close', 'last'),
-                Volume=('Volume', 'sum')
-            )
-        elif period == 'monthly':
-            # Resample to monthly frequency. Use 'M' for month end or 'MS' for month start.
-            agg_df = df.resample('M').agg(
-                Open=('Open', 'first'),
-                High=('High', 'max'),
-                Low=('Low', 'min'),
-                Close=('Close', 'last'),
-                Volume=('Volume', 'sum')
-            )
-        elif period == 'quarterly':  # Added quarterly aggregation
-        # Resample to quarterly frequency. Use 'Q' for quarter end or 'QS' for quarter start.
-            agg_df = df.resample('Q').agg(
-                Open=('Open', 'first'),
-                High=('High', 'max'),
-                Low=('Low', 'min'),
-                Close=('Close', 'last'),
-                Volume=('Volume', 'sum')
-        )
-        elif period == 'yearly':
-            # Resample to yearly frequency. Use 'Y' for year end or 'YS' for year start.
-            agg_df = df.resample('Y').agg(
-                Open=('Open', 'first'),
-                High=('High', 'max'),
-                Low=('Low', 'min'),
-                Close=('Close', 'last'),
-                Volume=('Volume', 'sum')
-            )
-        else:  # daily, 1y, 3y, 5y, all (no aggregation needed beyond initial fetch/filter)
-            agg_df = df[['Open', 'High', 'Low', 'Close', 'Volume']]  # Select relevant columns
+        # No aggregation needed for time-range filtering. Data is returned as is after filtering.
+        agg_df = df[['Open', 'High', 'Low', 'Close', 'Volume']]  # Select relevant columns
 
         if agg_df is None or agg_df.empty:
             return []

@@ -34,7 +34,7 @@ def index():
             "Financial Reports": "/api/financial/<emiten>"
         },
         "examples": {
-            "Stock Data": "/api/stock/AALI.JK?period=monthly",
+            "Stock Data": "/api/stock/AALI.JK?period=1month",
             "News Data": "/api/news/AALI.JK?limit=10&skip=0",
             "News Summary": "/api/news/summary/AALI.JK?limit=10&skip=0",
             "Financial Reports": "/api/financial/AALI.JK"
