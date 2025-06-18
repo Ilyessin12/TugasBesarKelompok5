@@ -105,9 +105,9 @@ def ingest_to_mongodb():
     print("Starting MongoDB ingestion...")
     
     # Get environment variables
-    connection_string = os.getenv("MONGODB_CONNECTION_STRING", "mongodb+srv://kelompok-5:FwJP0h7Bo6cTpEol@big-data.do3of.mongodb.net/?retryWrites=true&w=majority&ssl=true")
-    db_name = os.getenv("MONGODB_DATABASE_NAME", "Big_Data_kel_5")
-    collection_name = os.getenv("COLLECTION_YFINANCE_DATA", "Docker_Scraping_YFinance")
+    connection_string = os.getenv("MONGODB_CONNECTION_STRING")
+    db_name = os.getenv("MONGODB_DATABASE_NAME")
+    collection_name = os.getenv("COLLECTION_YFINANCE_DATA")
     output_file = os.getenv("YFINANCE_OUTPUT", "yfinancescrape.json")
     
     if not db_name:
