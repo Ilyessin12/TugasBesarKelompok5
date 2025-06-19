@@ -223,6 +223,8 @@ services:
       - ./extraction/laporan_keuangan/downloads:/app/downloads
     env_file:
       - .env
+    networks:
+      - app-network
 
   berita-scraper:
     build: ./extraction/berita
@@ -236,6 +238,9 @@ services:
       - ./extraction/berita/scraped_data:/app/scraped_data
     env_file:
       - .env
+    networks:
+      - app-network
+      - scraper-berita-network
 
   yfinance-scraper:
     build: ./extraction/yfinance
@@ -246,6 +251,9 @@ services:
       - ./extraction/yfinance/tugas1yfinance.py:/app/tugas1yfinance.py
     env_file:
       - .env
+    networks:
+      - app-network
+      - scraper-finance-network
 
 # Networks (dibutuhin sama mongo)
 networks:
